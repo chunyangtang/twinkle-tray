@@ -4,6 +4,7 @@ import DDCCISliders from "./DDCCISliders"
 import HDRSliders from "./HDRSliders";
 import TranslateReact from "../TranslateReact"
 import getMonitorName from "../utils/BrightnessPanel/getMonitorName";
+import { hasInputSources, inputSourcesEnabled } from "../utils/monitorInputs";
 
 const BrightnessPanel = memo(function BrightnessPanel() {
 
@@ -239,8 +240,14 @@ const BrightnessPanel = memo(function BrightnessPanel() {
         })
         let useFeatures = false
         // Check if we should use the extended DDC/CI layout or simple layout
-        for (const { hwid } of sorted) {
-          const monitorFeatures = window.settings?.monitorFeatures?.[hwid[1]]
+        for (const monitor of sorted) {
+          if (monitor.type === "ddcci" && hasInputSources(monitor) && inputSourcesEnabled(window.settings, monitor)) {
+            useFeatures = true
+            continue;
+          }
+
+          const { hwid } = monitor
+          const monitorFeatures = window.settings?.monitorFeatures?.[hwid[1]] ?? {}
           for (const vcp in monitorFeatures) {
             if (vcp == "0x10" || vcp == "0x13" || vcp == "0xD6") {
               continue; // Skip if brightness or power state
@@ -280,6 +287,10 @@ const BrightnessPanel = memo(function BrightnessPanel() {
                     }
                   }
                 })
+                if (monitor.type === "ddcci" && hasInputSources(monitor) && inputSourcesEnabled(window.settings, monitor)) {
+                  hasFeatures = true
+                  featureCount++
+                }
               }
               let showHDRSliders = false
               if((monitor.hdr === "active" || window.settings?.hdrDisplays?.[monitor.key]) && !(window.settings?.sdrAsMainSliderDisplays?.[monitor.key])) {

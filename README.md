@@ -1,11 +1,15 @@
 <p align="center">
   <img src="https://raw.githubusercontent.com/xanderfrangos/twinkle-tray/master/src/assets/logo.png" width="128px" height="128px" alt="Twinkle Tray brightness slider logo">
 </p>
-<h1 align="center">Twinkle Tray</h1>
+<h1 align="center">Twinkle Tray Input Switcher</h1>
 
 <p align="center"><a href="https://github.com/xanderfrangos/twinkle-tray/releases" target="_blank"><img src="https://img.shields.io/github/v/release/xanderfrangos/twinkle-tray" alt="Latest release" /></a> <a href="https://github.com/xanderfrangos/twinkle-tray/releases" target="_blank"><img src="https://img.shields.io/github/downloads/xanderfrangos/twinkle-tray/total" alt="Total downloads" /></a> <a href="https://hosted.weblate.org/projects/twinkle-tray/twinkle-tray/" target="_blank"><img src="https://hosted.weblate.org/widgets/twinkle-tray/-/twinkle-tray/svg-badge.svg" alt="Translations" /></a></p>
 
-Twinkle Tray enables brightness control on external displays in Windows 10 & 11. Even though Windows is capable of adjusting the backlight on most monitors, it doesn't support external monitors natively. Windows also lacks any options to manage the brightness of multiple displays. This app inserts a new icon into your system tray, where you can click to have instant access to the brightness levels of all compatible displays. 
+This is a personal/public fork of [Twinkle Tray](https://github.com/xanderfrangos/twinkle-tray). The goal is to stay close to the upstream project while adding practical monitor-control features that are useful for multi-device desk setups.
+
+The main fork-specific feature is input source switching for external DDC/CI displays. When a compatible monitor reports available inputs, the tray flyout shows input buttons under that display so you can switch between HDMI, DisplayPort, and other sources without opening the monitor OSD.
+
+The original Twinkle Tray enables brightness control on external displays in Windows 10 & 11. Even though Windows is capable of adjusting the backlight on most monitors, it doesn't support external monitors natively. Windows also lacks any options to manage the brightness of multiple displays. This app inserts a new icon into your system tray, where you can click to have instant access to the brightness levels of all compatible displays.
 
 <img src="https://raw.githubusercontent.com/xanderfrangos/twinkle-tray/gh-pages/assets/img/tt-screenshot-w11.jpg" alt="Win 10 brightness slider" />
 
@@ -16,6 +20,7 @@ Twinkle Tray enables brightness control on external displays in Windows 10 & 11.
 - Bind hotkeys to adjust the brightness of specific or all displays.
 - Normalize backlight across different monitors.
 - Control DDC/CI features such as contrast.
+- Switch monitor input sources from the tray flyout on compatible external DDC/CI displays.
 - Starts up with Windows.
 
 ### Design & Personalization
@@ -26,7 +31,9 @@ Twinkle Tray will automatically adjust the look and feel to match your Windows v
 
 ## Download
 
-**Download the lastest version from [twinkletray.com](https://twinkletray.com/) or the [Releases page](https://github.com/xanderfrangos/twinkle-tray/releases).**
+For the original upstream app, download the latest version from [twinkletray.com](https://twinkletray.com/) or the [upstream Releases page](https://github.com/xanderfrangos/twinkle-tray/releases).
+
+For this fork, use this repository's Releases page when releases are published. Development builds are also produced by GitHub Actions and can be downloaded from a successful `CI Build` run under the run's Artifacts section.
 
 <a href="https://www.microsoft.com/store/productId/9PLJWWSV01LK" target="_blank"><img width="156" src="https://crushee.app/assets/img/ms-store.svg" alt="Get Twinkle Tray brightness slider from the Microsoft Store"></a>
 
@@ -73,9 +80,10 @@ scoop update twinkle-tray
 
 ## Usage
 
-- Download from the [Releases page](https://github.com/xanderfrangos/twinkle-tray/releases) and run the installer EXE.
+- Download from this repository's Releases page or a trusted CI Build artifact, then run the installer EXE.
 - Once installation has finished, you should see the Twinkle Tray icon in your system tray. 
 - Click the icon to bring up the Adjust Brightness flyout. 
+- For compatible external DDC/CI displays, use the input source buttons under the display's brightness slider to switch inputs.
 - Click away to hide the flyout.
 - Right-click the system tray icon to quit.
 
@@ -119,7 +127,7 @@ Thanks to [several contributors](https://github.com/xanderfrangos/twinkle-tray/g
 </a>
 
 ## Build Instructions
-If you wish to run a development build of Twinkly Tray:
+If you wish to run a development build of Twinkle Tray:
 
 - Download or clone.
 - Install the build tools for [`node-gyp`](https://github.com/nodejs/node-gyp#installation), if not already installed. You may already have these from installing NodeJS.
@@ -127,6 +135,21 @@ If you wish to run a development build of Twinkly Tray:
 - Run `npm run build` to build an executable or `npm start` to run a development build.
 
 *Note: Twinkle Tray must be built on Windows.*
+
+### GitHub Codespaces and Actions
+
+GitHub Codespaces is useful for reviewing code and making smaller web/JavaScript edits, but it is not a full build environment for this app. Codespaces runs the remote container on Linux, while Twinkle Tray's Electron/native DDC/CI build must run on Windows. See GitHub's Codespaces overview: <https://docs.github.com/en/codespaces/about-codespaces/what-are-codespaces>.
+
+This repository already includes a Windows GitHub Actions workflow at `.github/workflows/ci.yml`. To get installer files without changing your local Node.js setup:
+
+1. Push your branch to GitHub.
+2. Open the repository on GitHub and go to **Actions**.
+3. Open the latest successful **CI Build** run.
+4. Download the installer artifact from the **Artifacts** section.
+
+GitHub documents the artifact download flow here: <https://docs.github.com/en/actions/how-tos/manage-workflow-runs/download-workflow-artifacts>.
+
+For a public release, keep normal development on a feature branch, merge into `master` after testing, then publish a GitHub Release and attach the installer artifact from the matching Actions run.
 
 ## Special Thanks
 

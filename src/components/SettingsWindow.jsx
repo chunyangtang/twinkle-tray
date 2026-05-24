@@ -971,7 +971,8 @@ export default class SettingsWindow extends PureComponent {
 
         const newFeatures = Object.assign({}, this.state.rawSettings.monitorFeatures)
         if (!newFeatures[monitor]) newFeatures[monitor] = {};
-        newFeatures[monitor][feature] = (newFeatures[monitor][feature] ? false : true);
+        const currentValue = (feature === "0x60" && newFeatures[monitor][feature] === undefined ? true : newFeatures[monitor][feature])
+        newFeatures[monitor][feature] = (currentValue ? false : true);
 
         window.sendSettings({ monitorFeatures: newFeatures })
     }
