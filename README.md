@@ -9,6 +9,9 @@ This is a personal/public fork of [Twinkle Tray](https://github.com/xanderfrango
 
 The main fork-specific feature is input source switching for external DDC/CI displays. When a compatible monitor reports available inputs, the tray flyout shows input buttons under that display so you can switch between HDMI, DisplayPort, and other sources without opening the monitor OSD.
 
+> [!WARNING]
+> This fork currently keeps the original Twinkle Tray application ID. Installing it may replace, upgrade, or conflict with an existing official Twinkle Tray installation. If you rely on the official app, back up your settings and uninstall one version before switching to the other.
+
 The original Twinkle Tray enables brightness control on external displays in Windows 10 & 11. Even though Windows is capable of adjusting the backlight on most monitors, it doesn't support external monitors natively. Windows also lacks any options to manage the brightness of multiple displays. This app inserts a new icon into your system tray, where you can click to have instant access to the brightness levels of all compatible displays.
 
 <img src="https://raw.githubusercontent.com/xanderfrangos/twinkle-tray/gh-pages/assets/img/tt-screenshot-w11.jpg" alt="Win 10 brightness slider" />
@@ -33,7 +36,7 @@ Twinkle Tray will automatically adjust the look and feel to match your Windows v
 
 For the original upstream app, download the latest version from [twinkletray.com](https://twinkletray.com/) or the [upstream Releases page](https://github.com/xanderfrangos/twinkle-tray/releases).
 
-For this fork, use this repository's Releases page when releases are published. Development builds are also produced by GitHub Actions and can be downloaded from a successful `CI Build` run under the run's Artifacts section.
+For this fork, use this repository's Releases page when releases are published. Because this fork keeps the original app ID, install it as an alternative to the official app rather than side-by-side with it. Development builds are also produced by GitHub Actions and can be downloaded from a successful `CI Build` run under the run's Artifacts section.
 
 <a href="https://www.microsoft.com/store/productId/9PLJWWSV01LK" target="_blank"><img width="156" src="https://crushee.app/assets/img/ms-store.svg" alt="Get Twinkle Tray brightness slider from the Microsoft Store"></a>
 
