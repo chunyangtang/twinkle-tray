@@ -19,6 +19,11 @@
         border-color: var(--input-border);
     }
 
+    &[data-active="true"] {
+        background: var(--button-color-background);
+        border-color: var(--button-color-border);
+    }
+
     &.disabled {
         opacity: 0.5;
         pointer-events: none;

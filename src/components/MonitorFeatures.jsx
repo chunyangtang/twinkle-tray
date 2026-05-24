@@ -3,6 +3,7 @@ import { useObject } from "../hooks/useObject"
 import { SettingsOption, SettingsChild } from "./SettingsOption";
 import Slider from "./Slider"
 import VCP from "../vcp-codes"
+import { getInputSourceName, getInputSourceValue, getInputSources, inputSourceVCP } from "../utils/monitorInputs"
 const ignoreCodes = ["0x10", "0x12", "0x13", "0x62", "0xD6", "0x60"]
 
 const deleteIcon = (<span className="icon" dangerouslySetInnerHTML={{ __html: "&#xE74D;" }}></span>)
@@ -11,27 +12,6 @@ export default function MonitorFeatures(props) {
     const { monitor, name, monitorFeatures, T, onChange } = props
 
     let extraHTML = []
-
-    const inputsData = {
-        1: "VGA-1",
-        2: "VGA-2",
-        3: "DVI-1",
-        4: "DVI-2",
-        5: "Composite video 1",
-        6: "Composite video 2",
-        7: "S-Video-1",
-        8: "S-Video-2",
-        9: "Tuner-1",
-        10: "Tuner-2",
-        11: "Tuner-3",
-        12: "Component video (YPrPb/YCrCb) 1",
-        13: "Component video (YPrPb/YCrCb) 2",
-        14: "Component video (YPrPb/YCrCb) 3",
-        15: "DisplayPort-1",
-        16: "DisplayPort-2",
-        17: "HDMI-1",
-        18: "HDMI-2"
-    }
 
     if (monitor.ddcciSupported && Object.keys(monitor.features || {}).length > 0) {
 
@@ -81,10 +61,10 @@ export default function MonitorFeatures(props) {
         }
 
         // Input
-        if (monitor.features["0x60"] && Array.isArray(monitor.features["0x60"]) && monitor.features["0x60"][1]) {
-            const vcp = "0x60"
-            const settings = window.settings?.monitorFeaturesSettings?.[monitor?.hwid[1]]?.[vcp]
-            const enabled = monitorFeatures?.["0x60"];
+        if (monitor.features[inputSourceVCP] && getInputSources(monitor).length) {
+            const vcp = inputSourceVCP
+            const enabled = monitorFeatures?.[vcp] !== false;
+            const inputValue = getInputSourceValue(monitor.features[vcp])
             extraHTML.push(
                 <SettingsOption className="monitor-feature-item" key={vcp} icon="e839" title={`${T.t("PANEL_LABEL_INPUTS")} ⚠️`} expandable={true} input={
                     <div className="inputToggle-generic"><input onChange={() => { props?.toggleFeature(monitor.hwid[1], vcp) }} checked={(enabled ? true : false)} data-checked={(enabled ? true : false)} type="checkbox" /></div>
@@ -92,8 +72,8 @@ export default function MonitorFeatures(props) {
                     <SettingsChild description={
                         <>
                             <div style={{ display: "flex", flexWrap: "wrap", gap: "10px" }}>
-                                {(Array.isArray(monitor.features["0x60"][1]) ? monitor.features["0x60"][1] : [])?.map(e =>
-                                    <div key={e + monitor.id} className="button" style={{ color: monitor.features[vcp] === e ? "red" : '' }} disabled={monitor.features[vcp] === e}>{inputsData[e]}</div>
+                                {getInputSources(monitor).map(e =>
+                                    <div key={e + monitor.id} className="button" data-active={inputValue === e}>{getInputSourceName(e)}</div>
                                 )}
                             </div>
                             <div style={{ marginTop: "10px" }}>

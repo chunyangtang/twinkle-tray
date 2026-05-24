@@ -1,43 +1,34 @@
-import React from "react"
+import React, { useEffect, useMemo } from "react"
 import { useObject } from "../hooks/useObject"
 import Slider from "./Slider"
+import { getInputSourceName, getInputSources, getInputSourceValue, inputSourceVCP, inputSourcesEnabled } from "../utils/monitorInputs"
 
 export default function DDCCISliders(props) {
     const { monitor, monitorFeatures } = props
 
-    const defaultValues = {}
+    const defaultValues = useMemo(() => {
+        const values = {}
+        for (const vcp in monitor?.features) {
+            values[vcp] = vcp === inputSourceVCP
+                ? monitor?.features?.[vcp] ?? 0
+                : monitor?.features?.[vcp]?.[0] ?? 0
+        }
+        return values
+    }, [monitor?.features])
 
-    for (const vcp in monitor?.features) {
-        defaultValues[vcp] = vcp === "0x60"
-            ? monitor?.features?.[vcp] ?? 0
-            : monitor?.features?.[vcp]?.[0] ?? 0
-    }
     const [values, setValues] = useObject(defaultValues)
+    const inputSources = getInputSources(monitor)
+    const inputSourceValue = getInputSourceValue(values[inputSourceVCP])
+    const showInputSources = monitor?.type === "ddcci"
+        && inputSources.length > 0
+        && inputSourcesEnabled(window.settings, monitor)
 
-    const inputsData = {
-        1: "VGA-1",
-        2: "VGA-2",
-        3: "DVI-1",
-        4: "DVI-2",
-        5: "Composite video 1",
-        6: "Composite video 2",
-        7: "S-Video-1",
-        8: "S-Video-2",
-        9: "Tuner-1",
-        10: "Tuner-2",
-        11: "Tuner-3",
-        12: "Component video (YPrPb/YCrCb) 1",
-        13: "Component video (YPrPb/YCrCb) 2",
-        14: "Component video (YPrPb/YCrCb) 3",
-        15: "DisplayPort-1",
-        16: "DisplayPort-2",
-        17: "HDMI-1",
-        18: "HDMI-2"
-    }
+    useEffect(() => {
+        setValues(defaultValues)
+    }, [defaultValues])
 
     const changeInputsState = (code) => {
-        const a = [code, [...values["0x60"][1]]]
-        setValues({ ["0x60"]: a })
+        setValues({ [inputSourceVCP]: [code, [...inputSources]] })
     }
 
     let extraHTML = []
@@ -53,6 +44,39 @@ export default function DDCCISliders(props) {
             }
 
             const feature = monitor.features[vcp]
+
+            if (vcp === inputSourceVCP) {
+                // Input source buttons are shown by default for DDC/CI displays, with the settings toggle acting as an opt-out.
+                if (feature && showInputSources && !(featureSettings?.[vcp]?.linked)) {
+                    extraHTML.push(
+                        <div className="feature-row feature-inputs" key={monitor.key + "_" + vcp}>
+                            <div className="feature-icon"><span className="icon vfix">&#xE839;</span></div>
+                            <div className="input-source-buttons">
+                                {inputSources.map(input => {
+                                    const active = inputSourceValue === input
+                                    return (
+                                        <button
+                                            key={input + monitor.id}
+                                            className="button input-source-button"
+                                            data-active={active}
+                                            disabled={active}
+                                            title={getInputSourceName(input)}
+                                            type="button"
+                                            onClick={() => {
+                                                setVCP(monitor.id, parseInt(vcp), input)
+                                                changeInputsState(input)
+                                            }}>
+                                            {getInputSourceName(input)}
+                                        </button>
+                                    )
+                                })}
+                            </div>
+                        </div>
+                    )
+                }
+                continue;
+            }
+
             if (feature && monitorFeatures?.[vcp] && !(featureSettings?.[vcp]?.linked)) {
                 // Feature has a value, is enabled, and not linked
                 if (vcp === "0x12") {
@@ -70,18 +94,6 @@ export default function DDCCISliders(props) {
                             <div className="feature-icon"><span className="icon vfix">&#xE767;</span></div>
                             <Slider type="volume" monitorID={monitor.id} level={values[vcp]} monitorName={monitor.name} monitortype={monitor.type} onChange={val => { setValues({ [vcp]: val }); setVCP(monitor.id, parseInt(vcp), val * (monitor.features[vcp][1] / 100)) }} scrollAmount={props.scrollAmount} />
                         </div>
-                    )
-                } else if (vcp === "0x60") {
-                    // Input
-                    extraHTML.push(
-                        <div className="feature-row feature-inputs" key={monitor.key + "_" + vcp}>
-                            <div className="feature-icon"><span className="icon vfix">&#xE839;</span></div>
-                            <div style={{ display: "flex", flexWrap: "wrap", gap: "3px" }}>
-                                {values["0x60"][1].map(e =>
-                                    <button key={e + monitor.id} className={values["0x60"][0] === e ? "button disabled" : "button"} disabled={values["0x60"][0] === e} onClick={() => { setVCP(monitor.id, parseInt(vcp), e); changeInputsState(e) }}>{inputsData[e]}</button>
-                                )}
-                            </div>
-                        </div >
                     )
                 } else {
                     // Custom

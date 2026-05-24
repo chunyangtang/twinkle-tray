@@ -1162,17 +1162,6 @@ getMonitorInputs(const Napi::CallbackInfo& info)
             &inputs
         );
 
-        DWORD currentInput1 = 0;
-        DWORD inputs1 = 0;
-
-        BOOL success1 = GetVCPFeatureAndVCPFeatureReply(
-            monitor.handle, 
-            (BYTE)0xDC,
-            NULL, 
-            &currentInput1,
-            &inputs1
-        );
-        std::cout << inputs1 << "," << currentInput1;
         // Преобразуем текущий вход в число
         unsigned int currentCodeValue = 0;
         if (success) {

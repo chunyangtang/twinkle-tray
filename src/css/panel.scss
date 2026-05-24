@@ -413,7 +413,41 @@ body[data-is-win11="false"] #root {
 }
 
 .feature-inputs {
-    height: 60px;
+    align-items: flex-start;
+    height: auto;
+    min-height: 38px;
+    margin-top: -6px;
+
+    .feature-icon {
+        padding-top: 2px;
+    }
+}
+
+.input-source-buttons {
+    display: flex;
+    flex: 1;
+    flex-wrap: wrap;
+    gap: 6px;
+    min-width: 0;
+    padding-bottom: 4px;
+}
+
+.input-source-button {
+    color: var(--tray-text);
+    cursor: pointer;
+    font-size: 12.5px;
+    line-height: 1;
+    min-height: 28px;
+    padding: 0 10px;
+    white-space: nowrap;
+
+    &[data-active="true"] {
+        background: var(--system-accent-medium);
+        border-color: var(--system-accent-medium);
+        color: white;
+        opacity: 1;
+        pointer-events: none;
+    }
 }
 
 .feature-icon {
