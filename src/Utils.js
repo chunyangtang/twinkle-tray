@@ -227,6 +227,7 @@ Flag to show brightness levels in the panel
     },
     upgradeAdjustmentTimes,
     getVersionValue,
+    compareVersionValues,
     lerp,
     parseTime,
     getCalibratedValue
@@ -259,11 +260,32 @@ function upgradeAdjustmentTimes(times = []) {
     return newTimes
 }
 
+function getNormalizedVersion(version = 'v1.0.0') {
+    return `${version}`.trim().replace(/^v/i, "")
+}
+
 // Convert version to a numeric value (v1.2.3 = 10020003)
 function getVersionValue(version = 'v1.0.0') {
-    let out = version.split('-')[0].replace("v", "").split(".")
+    let out = getNormalizedVersion(version).split(/[+-]/)[0].split(".")
+    out = [
+        parseInt(out[0]) || 0,
+        parseInt(out[1]) || 0,
+        parseInt(out[2]) || 0
+    ]
     out = (out[0] * 10000 * 10000) + (out[1] * 10000) + (out[2] * 1)
     return parseInt(out)
+}
+
+function getForkBuildValue(version = 'v1.0.0') {
+    const build = getNormalizedVersion(version).split("+")[1] || ""
+    const match = build.match(/(?:^|[.-])cy[.-]?(\d+)/i)
+    return match ? (parseInt(match[1]) || 0) : 0
+}
+
+function compareVersionValues(left = 'v1.0.0', right = 'v1.0.0') {
+    const baseDiff = getVersionValue(left) - getVersionValue(right)
+    if (baseDiff !== 0) return baseDiff
+    return getForkBuildValue(left) - getForkBuildValue(right)
 }
 
 function lerp(start, finish, perc) {

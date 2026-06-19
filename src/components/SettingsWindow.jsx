@@ -103,6 +103,7 @@ const defaultAction = {
     target: "brightness",
     monitors: {},
     allMonitors: false,
+    mouseMonitor: false,
     value: 0,
     values: [0],
     id: uuid()
@@ -404,7 +405,7 @@ export default class SettingsWindow extends PureComponent {
                 <p><a onClick={() => { window.openURL("ms-store") }}>{T.t("SETTINGS_UPDATES_MS_STORE")}</a></p>
             )
         } else {
-            if (this.state.latest && this.state.latest != window.version) {
+            if (this.state.latest && this.state.latest != window.versionFull) {
                 return (
                     <div>
                         <p><b style={{ color: window.accent }}>{T.t("SETTINGS_UPDATES_AVAILABLE") + ` (${this.state.latest})`}</b></p>
@@ -1493,7 +1494,7 @@ export default class SettingsWindow extends PureComponent {
                             <SettingsPage current={this.state.activePage} id="updates">
                                 <div className="pageSection">
                                     <div className="sectionTitle">{T.t("SETTINGS_UPDATES_TITLE")}</div>
-                                    <p>{T.h("SETTINGS_UPDATES_VERSION", '<b>' + (window.version ? `${window.version}${window.versionTag && window.versionBuild ? ` (${window.versionBuild})` : ""}` : "not available") + '</b>')}</p>
+                                    <p>{T.h("SETTINGS_UPDATES_VERSION", '<b>' + (window.version ? `${window.version}${window.versionBuild ? ` (${window.versionBuild})` : ""}` : "not available") + '</b>')}</p>
                                     {this.getUpdate()}
                                 </div>
                                 <div className="pageSection" style={{ display: (window.isAppX ? "none" : (this.isSection("updates") ? "block" : "none")) }}>
@@ -1738,7 +1739,7 @@ function ActionItem(props) {
 
     const getHotkeyMonitors = () => {
         try {
-            if(action.allMonitors) return (null)
+            if(action.allMonitors || action.mouseMonitor) return (null)
             if (monitors == undefined || Object.keys(monitors).length == 0) {
                 return (<div className="no-displays-message option-description" style={{lineHeight:1.35}}>{T.t("GENERIC_NO_COMPATIBLE_DISPLAYS")}</div>)
             } else {
@@ -1868,9 +1869,22 @@ function ActionItem(props) {
                         <div className="field">
                             <div className="feature-toggle-row">
                                 <input onChange={e => {
-                                    action.allMonitors = e.target.checked
+                                    action.mouseMonitor = e.target.checked
+                                    if (e.target.checked) {
+                                        action.allMonitors = false
+                                    }
                                     props.onChange?.(action)
-                                }} checked={action.allMonitors} data-checked={action.allMonitors} type="checkbox" />
+                                }} checked={(action.mouseMonitor ? true : false)} data-checked={(action.mouseMonitor ? true : false)} type="checkbox" />
+                                <div className="feature-toggle-label">{T.t("SETTINGS_HOTKEY_MOUSE_DISPLAY")}</div>
+                            </div>
+                            <div className="feature-toggle-row">
+                                <input onChange={e => {
+                                    action.allMonitors = e.target.checked
+                                    if (e.target.checked) {
+                                        action.mouseMonitor = false
+                                    }
+                                    props.onChange?.(action)
+                                }} checked={(action.allMonitors ? true : false)} data-checked={(action.allMonitors ? true : false)} type="checkbox" />
                                 <div className="feature-toggle-label">{T.t("GENERIC_ALL_DISPLAYS")}</div>
                             </div>
                             {getHotkeyMonitors()}

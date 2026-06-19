@@ -3,14 +3,14 @@
 </p>
 <h1 align="center">Twinkle Tray Input Switcher</h1>
 
-<p align="center"><a href="https://github.com/xanderfrangos/twinkle-tray/releases" target="_blank"><img src="https://img.shields.io/github/v/release/xanderfrangos/twinkle-tray" alt="Latest release" /></a> <a href="https://github.com/xanderfrangos/twinkle-tray/releases" target="_blank"><img src="https://img.shields.io/github/downloads/xanderfrangos/twinkle-tray/total" alt="Total downloads" /></a> <a href="https://hosted.weblate.org/projects/twinkle-tray/twinkle-tray/" target="_blank"><img src="https://hosted.weblate.org/widgets/twinkle-tray/-/twinkle-tray/svg-badge.svg" alt="Translations" /></a></p>
+<p align="center"><a href="https://github.com/chunyangtang/twinkle-tray/releases" target="_blank"><img src="https://img.shields.io/github/v/release/chunyangtang/twinkle-tray" alt="Latest fork release" /></a> <a href="https://github.com/chunyangtang/twinkle-tray/releases" target="_blank"><img src="https://img.shields.io/github/downloads/chunyangtang/twinkle-tray/total" alt="Fork downloads" /></a> <a href="https://hosted.weblate.org/projects/twinkle-tray/twinkle-tray/" target="_blank"><img src="https://hosted.weblate.org/widgets/twinkle-tray/-/twinkle-tray/svg-badge.svg" alt="Translations" /></a></p>
 
-This is a personal/public fork of [Twinkle Tray](https://github.com/xanderfrangos/twinkle-tray). The goal is to stay close to the upstream project while adding practical monitor-control features that are useful for multi-device desk setups.
+This is an unofficial personal/public replacement build of [Twinkle Tray](https://github.com/xanderfrangos/twinkle-tray). The goal is to stay close to the upstream project while adding practical monitor-control features that are useful for multi-device desk setups.
 
-The main fork-specific feature is input source switching for external DDC/CI displays. When a compatible monitor reports available inputs, the tray flyout shows input buttons under that display so you can switch between HDMI, DisplayPort, and other sources without opening the monitor OSD.
+The main fork-specific features are refined input source switching for external DDC/CI displays and a custom hotkey target for the display under the mouse cursor. When a compatible monitor reports available inputs, the tray flyout shows input buttons under that display so you can switch between HDMI, DisplayPort, and other sources without opening the monitor OSD.
 
 > [!WARNING]
-> This fork currently keeps the original Twinkle Tray application ID. Installing it may replace, upgrade, or conflict with an existing official Twinkle Tray installation. If you rely on the official app, back up your settings and uninstall one version before switching to the other.
+> This is an unofficial replacement build. It intentionally keeps the original Twinkle Tray application ID, so installing it may replace, upgrade, or conflict with an existing official Twinkle Tray installation. If you rely on the official app, back up your settings and uninstall one version before switching to the other. Built-in update checks in this fork point to this repository's releases, not the upstream Twinkle Tray releases.
 
 The original Twinkle Tray enables brightness control on external displays in Windows 10 & 11. Even though Windows is capable of adjusting the backlight on most monitors, it doesn't support external monitors natively. Windows also lacks any options to manage the brightness of multiple displays. This app inserts a new icon into your system tray, where you can click to have instant access to the brightness levels of all compatible displays.
 
@@ -21,6 +21,7 @@ The original Twinkle Tray enables brightness control on external displays in Win
 - Seamlessly blends in with Windows 10 and Windows 11. Uses your Personalization settings to match your taskbar.
 - Can automatically change monitor brightness depending on the time of day or when idle.
 - Bind hotkeys to adjust the brightness of specific or all displays.
+- Bind hotkeys to adjust the display currently under the mouse cursor.
 - Normalize backlight across different monitors.
 - Control DDC/CI features such as contrast.
 - Switch monitor input sources from the tray flyout on compatible external DDC/CI displays.
@@ -36,7 +37,7 @@ Twinkle Tray will automatically adjust the look and feel to match your Windows v
 
 For the original upstream app, download the latest version from [twinkletray.com](https://twinkletray.com/) or the [upstream Releases page](https://github.com/xanderfrangos/twinkle-tray/releases).
 
-For this fork, use this repository's Releases page when releases are published. Because this fork keeps the original app ID, install it as an alternative to the official app rather than side-by-side with it. Development builds are also produced by GitHub Actions and can be downloaded from a successful `CI Build` run under the run's Artifacts section.
+For this fork, use this repository's [Releases page](https://github.com/chunyangtang/twinkle-tray/releases). Because this fork keeps the original app ID, install it as an alternative to the official app rather than side-by-side with it. Development builds are also produced by GitHub Actions and can be downloaded from a successful `CI Build` run under the run's Artifacts section.
 
 <a href="https://www.microsoft.com/store/productId/9PLJWWSV01LK" target="_blank"><img width="156" src="https://crushee.app/assets/img/ms-store.svg" alt="Get Twinkle Tray brightness slider from the Microsoft Store"></a>
 
@@ -153,6 +154,12 @@ This repository already includes a Windows GitHub Actions workflow at `.github/w
 GitHub documents the artifact download flow here: <https://docs.github.com/en/actions/how-tos/manage-workflow-runs/download-workflow-artifacts>.
 
 For a public release, keep normal development on a feature branch, merge into `master` after testing, then publish a GitHub Release and attach the installer artifact from the matching Actions run.
+
+### Fork Versioning And Updates
+
+This fork keeps `version` aligned with the upstream Twinkle Tray base version and tracks fork builds with `versionBuild`, for example `1.17.2+cy.1`. Release tags should use the same full build version with a leading `v`, for example `v1.17.2+cy.1`.
+
+The built-in updater checks releases from this fork and downloads the Windows installer asset from the latest eligible release. It does not install releases from the upstream Twinkle Tray repository.
 
 ## Special Thanks
 

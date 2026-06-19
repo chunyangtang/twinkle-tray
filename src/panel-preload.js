@@ -79,6 +79,17 @@ function requestMonitors() {
     ipc.send('request-monitors')
 }
 
+function refreshMonitorInputs() {
+    ipc.send('refresh-monitor-inputs')
+}
+
+function refreshMonitorInputsOnOpen() {
+    refreshMonitorInputs()
+    setTimeout(() => {
+        if (window.showPanel) refreshMonitorInputs()
+    }, 750)
+}
+
 function requestAccent() {
     ipc.send('request-colors')
 }
@@ -189,6 +200,8 @@ function dismissUpdate() {
 ipc.on('tray-clicked', () => {
     window.document.getElementById("root").dataset["sleep"] = false
     setPanelVisibility(true)
+    requestMonitors()
+    refreshMonitorInputsOnOpen()
 })
 
 ipc.on("panelBlur", (e) => {
@@ -421,6 +434,7 @@ window.addEventListener("setVCP", e => {
 window.ipc = ipc
 window.updateBrightness = updateBrightness
 window.requestMonitors = requestMonitors
+window.refreshMonitorInputs = refreshMonitorInputs
 window.openSettings = openSettings
 window.sendSettings = sendSettings
 window.requestSettings = requestSettings

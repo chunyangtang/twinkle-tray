@@ -13,6 +13,8 @@ const appVersion = appVersionFull.split('+')[0]
 const appVersionTag = appVersion?.split('-')[1]
 const appBuild = (isDev ? "dev" : appVersionFull.split('+')[1])
 const appBuildShort = (appBuild && appBuild.length > 7 ? appBuild.slice(0, 7) : appBuild)
+const releaseRepo = "chunyangtang/twinkle-tray"
+const releaseAPIURL = `https://api.github.com/repos/${releaseRepo}/releases`
 
 const isAppX = (app.name == "twinkle-tray-appx" ? true : false)
 const isPortable = (app.name == "twinkle-tray-portable" ? true : false)
@@ -241,7 +243,10 @@ function stopMonitorThread() {
 
 function getVCP(monitor, code) {
   return new Promise((resolve, reject) => {
-    if (!monitor || !code) resolve(-1);
+    if (!monitor || !code) {
+      resolve(-1)
+      return false;
+    }
     const vcpParsed = parseInt(`0x${parseInt(code).toString(16).toUpperCase()}`)
     const hwid = (typeof monitor === "object" ? monitor.hwid.join("#") : monitor)
     const timeout = setTimeout(() => {
@@ -251,11 +256,7 @@ function getVCP(monitor, code) {
       clearTimeout(timeout)
       // Write VCP values to monitor object
       if(data?.value?.[0] != undefined) {
-        try {
-          monitors[hwid?.split("#")[2]].features[vcpStr(vcpParsed)] = data.value?.[0]
-        } catch(e) {
-          console.log(e)
-        }
+        updateMonitorFeatureValue(hwid, vcpParsed, data.value)
       }
       resolve(data?.value?.[0])
     })
@@ -265,6 +266,59 @@ function getVCP(monitor, code) {
       monitor: hwid
     })
   })
+}
+
+function updateMonitorFeatureValue(hwid, code, value) {
+  try {
+    const monitor = monitors[hwid?.split("#")[2]]
+    const vcpString = vcpStr(code)
+    const currentFeature = monitor?.features?.[vcpString]
+    if (!monitor?.features || currentFeature === undefined) return false;
+
+    if (vcpString === "0x60" && Array.isArray(value)) {
+      const previousInputs = Array.isArray(currentFeature?.[1]) ? currentFeature[1] : []
+      const nextInputs = Array.isArray(value[1]) ? value[1] : previousInputs
+      monitor.features[vcpString] = [parseInt(value[0]), nextInputs]
+      return true
+    }
+
+    if (Array.isArray(currentFeature)) {
+      currentFeature[0] = Array.isArray(value) ? parseInt(value[0]) : parseInt(value)
+      return true
+    }
+
+    monitor.features[vcpString] = Array.isArray(value) ? parseInt(value[0]) : parseInt(value)
+    return true
+  } catch(e) {
+    console.log(e)
+    return false
+  }
+}
+
+let refreshingMonitorInputs = false
+async function refreshMonitorInputs() {
+  if (refreshingMonitorInputs || !monitorsThreadReady) return false;
+
+  const inputMonitors = Object.values(monitors).filter(monitor => {
+    return monitor?.type === "ddcci" && (
+      monitor?.features?.["0x60"] ||
+      monitor?.vcpCodes?.["0x60"]
+    )
+  })
+
+  if (inputMonitors.length === 0) return false;
+
+  refreshingMonitorInputs = true
+  try {
+    await Promise.allSettled(inputMonitors.map(monitor => getVCP(monitor, 0x60)))
+    sendToAllWindows('monitors-updated', monitors)
+    return true
+  } catch(e) {
+    console.log("Couldn't refresh monitor input sources", e)
+    return false
+  } finally {
+    refreshingMonitorInputs = false
+  }
 }
 
 
@@ -1127,6 +1181,79 @@ let hotkeyOverlayTimeout
 let hotkeyThrottle = []
 let doingHotkey = false
 const hotkeyCycleIndexes = []
+
+function getMonitorBounds(monitor) {
+  const bounds = monitor?.bounds
+  if (!bounds) return false;
+
+  const position = bounds.position || {}
+  const widthFromEdges = Number.isFinite(Number(bounds.right)) && Number.isFinite(Number(bounds.left)) ? Number(bounds.right) - Number(bounds.left) : undefined
+  const heightFromEdges = Number.isFinite(Number(bounds.bottom)) && Number.isFinite(Number(bounds.top)) ? Number(bounds.bottom) - Number(bounds.top) : undefined
+  const x = Number(bounds.x ?? bounds.left ?? position.x)
+  const y = Number(bounds.y ?? bounds.top ?? position.y)
+  const width = Number(bounds.width ?? bounds.activeSize?.cx ?? widthFromEdges)
+  const height = Number(bounds.height ?? bounds.activeSize?.cy ?? heightFromEdges)
+
+  if (![x, y, width, height].every(Number.isFinite) || width <= 0 || height <= 0) {
+    return false
+  }
+
+  return { x, y, width, height }
+}
+
+function isPointInBounds(point, bounds) {
+  return point.x >= bounds.x && point.x < bounds.x + bounds.width && point.y >= bounds.y && point.y < bounds.y + bounds.height
+}
+
+function getMonitorUnderCursor(monitorList = monitors) {
+  try {
+    const cursorDip = screen.getCursorScreenPoint()
+    let cursorScreen = cursorDip
+    try {
+      cursorScreen = screen.dipToScreenPoint ? screen.dipToScreenPoint(cursorDip) : cursorDip
+    } catch (e) {
+      console.log("Couldn't convert cursor position to screen coordinates", e)
+    }
+    const candidates = Object.values(monitorList).filter(monitor => {
+      return monitor && monitor.type !== "none" && settings.hideDisplays?.[monitor.key] !== true
+    })
+    const monitorBounds = candidates.map(monitor => ({ monitor, bounds: getMonitorBounds(monitor) })).filter(item => item.bounds)
+
+    // Win32 monitor bounds are physical screen coordinates. Prefer matching in that space.
+    for (const item of monitorBounds) {
+      if (isPointInBounds(cursorScreen, item.bounds)) return item.monitor
+    }
+
+    // Fall back to DIP coordinates for mixed-DPI layouts.
+    const dipBoundsByMonitor = []
+    for (const item of monitorBounds) {
+      try {
+        const dipBounds = screen.screenToDipRect ? screen.screenToDipRect(null, item.bounds) : item.bounds
+        dipBoundsByMonitor.push({ monitor: item.monitor, bounds: dipBounds })
+        if (isPointInBounds(cursorDip, dipBounds)) return item.monitor
+      } catch (e) {
+        console.log("Couldn't convert monitor bounds to DIP coordinates", e)
+      }
+    }
+
+    const nearestDisplay = screen.getDisplayNearestPoint(cursorDip)
+    if (nearestDisplay) {
+      for (const item of dipBoundsByMonitor) {
+        try {
+          const displayForBounds = screen.getDisplayMatching(item.bounds)
+          if (displayForBounds?.id === nearestDisplay.id) return item.monitor
+        } catch (e) {
+          console.log("Couldn't match monitor bounds to Electron display", e)
+        }
+      }
+    }
+  } catch (e) {
+    console.log("Couldn't determine monitor under cursor", e)
+  }
+
+  return false
+}
+
 async function doHotkey(hotkey) {
   const now = Date.now()
   if (!doingHotkey && (hotkeyThrottle[hotkey.id] === undefined || now > hotkeyThrottle[hotkey.id] + 100)) {
@@ -1160,12 +1287,16 @@ async function doHotkey(hotkey) {
 
           // Build list of all applicable monitors
           const hotkeyMonitors = []
+          const mouseMonitor = action.mouseMonitor ? getMonitorUnderCursor(monitors) : false
 
           // Determine applicable monitors and new values
           for (const monitor of Object.values(monitors)) {
 
             let applicable = false
-            if (action.allMonitors || (settings.linkedLevelsActive && !settings.hotkeysBreakLinkedLevels)) {
+            if (action.mouseMonitor) {
+              // Target the monitor containing the mouse cursor
+              applicable = mouseMonitor && monitor.id === mouseMonitor.id
+            } else if (action.allMonitors || (settings.linkedLevelsActive && !settings.hotkeysBreakLinkedLevels)) {
               // Target all monitors
               applicable = true
             } else if (Object.keys(action.monitors)?.length && action.monitors[monitor.id]) {
@@ -2396,6 +2527,10 @@ ipcMain.on('request-monitors', function (event, arg) {
   //refreshMonitors(false, true)
 })
 
+ipcMain.on('refresh-monitor-inputs', function (event, arg) {
+  refreshMonitorInputs()
+})
+
 ipcMain.on('full-refresh', function (event, forceUpdate = false) {
   refreshMonitors(true).then(() => {
     if (forceUpdate) {
@@ -2555,6 +2690,7 @@ function createPanel(toggleOnLoad = false, isRefreshing = false, showOnLoad = tr
       zoomFactor: 1.0,
       additionalArguments: ["jsVars" + Buffer.from(JSON.stringify({
         appName: app.name,
+        appVersionFull,
         appVersion: appVersion,
         appVersionTag: appVersionTag,
         appBuild: appBuildShort,
@@ -3619,6 +3755,7 @@ function createSettings() {
       zoomFactor: 1.0,
       additionalArguments: ["jsVars" + Buffer.from(JSON.stringify({
         appName: app.name,
+        appVersionFull,
         appVersion: appVersion,
         appVersionTag: appVersionTag,
         appBuild: appBuildShort,
@@ -3705,6 +3842,18 @@ ipcMain.on("windowClose", e => {
 
 let latestVersion = false
 let lastCheck = false
+function getReleaseInstallerAsset(release) {
+  try {
+    return release.assets?.find(asset => {
+      return /\.exe$/i.test(asset.name)
+        && !/blockmap|portable|store|appx/i.test(asset.name)
+        && asset.browser_download_url
+    }) || false
+  } catch(e) {
+    return false
+  }
+}
+
 checkForUpdates = async (force = false) => {
   if (!force) {
     if (!settings.checkForUpdates) return false;
@@ -3715,23 +3864,25 @@ checkForUpdates = async (force = false) => {
   try {
     if (isAppX === false) {
       console.log("Checking for updates...")
-      fetch("https://api.github.com/repos/xanderfrangos/twinkle-tray/releases").then((response) => {
+      fetch(releaseAPIURL).then((response) => {
         response.json().then((releases) => {
           let foundVersion = false
+          let versionComparison = 0
           for (let release of releases) {
             if (!(settings.branch === "master" && release.prerelease === true)) {
+              const installerAsset = getReleaseInstallerAsset(release)
+              if (!installerAsset) continue;
 
               // Skip versions older than current
-              const versionParsed =  Utils.getVersionValue(release.tag_name)
-              const appVersionValue = Utils.getVersionValue(`v${app.getVersion()}`)
-              if(versionParsed < appVersionValue) continue;
+              versionComparison = Utils.compareVersionValues(release.tag_name, `v${appVersionFull}`)
+              if(versionComparison < 0) continue;
 
               foundVersion = true
               latestVersion = {
                 releaseURL: (release.html_url),
                 version: release.tag_name,
-                downloadURL: release.assets[0]["browser_download_url"],
-                filesize: release.assets[0]["size"],
+                downloadURL: installerAsset.browser_download_url,
+                filesize: installerAsset.size,
                 changelog: release.body,
                 show: false,
                 error: false
@@ -3741,9 +3892,11 @@ checkForUpdates = async (force = false) => {
             }
           }
 
-          if (foundVersion && "v" + appVersion != latestVersion.version && (settings.dismissedUpdate != latestVersion.version || force)) {
+          if (foundVersion && versionComparison > 0 && (settings.dismissedUpdate != latestVersion.version || force)) {
             if (!force) latestVersion.show = true
             console.log("Sending new version to windows.")
+            sendToAllWindows('latest-version', latestVersion)
+          } else if (foundVersion && force) {
             sendToAllWindows('latest-version', latestVersion)
           }
 
@@ -3758,6 +3911,7 @@ checkForUpdates = async (force = false) => {
 
 getLatestUpdate = async (version) => {
   try {
+    if (!version?.downloadURL) return false;
     console.log("Downloading update from: " + version.downloadURL)
     const fs = require('fs');
 

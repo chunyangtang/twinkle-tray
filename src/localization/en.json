@@ -221,6 +221,7 @@
     "SETTINGS_HOTKEY_ADD_VALUE": "Add Value",
     "SETTINGS_HOTKEY_ADD_ACTION": "Add Action",
     "SETTINGS_HOTKEY_ACTION": "Action",
+    "SETTINGS_HOTKEY_MOUSE_DISPLAY": "Display under mouse",
     "SETTINGS_HOTKEY_ACTION_SET": "Set value",
     "SETTINGS_HOTKEY_ACTION_OFFSET": "Adjust value",
     "SETTINGS_HOTKEY_ACTION_CYCLE": "Cycle list of values",
