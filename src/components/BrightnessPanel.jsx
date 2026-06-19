@@ -1,4 +1,4 @@
-import React, { memo, useEffect, useMemo, useState } from "react";
+import React, { memo, useEffect, useMemo, useRef, useState } from "react";
 import Slider from "./Slider";
 import DDCCISliders from "./DDCCISliders"
 import HDRSliders from "./HDRSliders";
@@ -17,10 +17,10 @@ const BrightnessPanel = memo(function BrightnessPanel() {
     updateProgress: 0,
     isRefreshing: window.isRefreshing
   })
-  const [doBackgroundEvent, setDoBackgroundEvent] = useState(false)
   const [levelsChanged, setLevelsChanged] = useState(false)
   const [init, setInit] = useState(false)
-  const [lastLevels, setLastLevels] = useState([])
+  const lastLevels = useRef({})
+  const changedMonitorKeys = useRef(new Set())
   const [T] = useState(new TranslateReact({}, {}))
 
   const numMonitors = useMemo(() => {
@@ -30,6 +30,24 @@ const BrightnessPanel = memo(function BrightnessPanel() {
     }
     return localNumMonitors
   }, [state.monitors])
+
+  const isBrightnessMonitor = (monitor) => {
+    return monitor && (
+      monitor.type == "wmi" ||
+      monitor.type == "studio-display" ||
+      (monitor.type == "ddcci" && monitor.brightnessType) ||
+      monitor.hdr === "active"
+    )
+  }
+
+  const rememberLevels = (monitors = {}, skipPending = false) => {
+    for (const key in monitors) {
+      const monitor = monitors[key]
+      if (isBrightnessMonitor(monitor) && !(skipPending && changedMonitorKeys.current.has(monitor.key))) {
+        lastLevels.current[monitor.key] = monitor.brightness
+      }
+    }
+  }
 
   let updateInterval = null
   let panelHeight = -1
@@ -51,17 +69,23 @@ const BrightnessPanel = memo(function BrightnessPanel() {
       // Update all monitors (linked)
       for (let key in monitors) {
         const monitor = monitors[key]
-        monitor.brightness = level
+        if (isBrightnessMonitor(monitor)) {
+          monitor.brightness = level
+          changedMonitorKeys.current.add(monitor.key)
+        }
       }
       setState(prev => ({ ...prev, monitors }))
       setLevelsChanged(true)
-      if (state.updateInterval === 999) syncBrightness()
+      if (state.updateInterval === 999) syncBrightness(monitors)
     } else if (numMonitors > 0) {
       // Update single monitor
-      if (sliderMonitor) sliderMonitor.brightness = level;
+      if (sliderMonitor) {
+        sliderMonitor.brightness = level
+        changedMonitorKeys.current.add(sliderMonitor.key)
+      }
       setState(prev => ({ ...prev, monitors }))
       setLevelsChanged(true)
-      if (state.updateInterval === 999) syncBrightness()
+      if (state.updateInterval === 999) syncBrightness(monitors)
     }
     window.pauseMonitorUpdates()
   }
@@ -69,7 +93,20 @@ const BrightnessPanel = memo(function BrightnessPanel() {
   // Update monitor info
   const recievedMonitors = (e) => {
     let newMonitors = { ...e.detail }
-    setLastLevels([])
+    rememberLevels(newMonitors, true)
+    if (changedMonitorKeys.current.size > 0) {
+      for (const key of changedMonitorKeys.current) {
+        if (newMonitors[key] && state.monitors[key]) {
+          newMonitors[key] = {
+            ...newMonitors[key],
+            brightness: state.monitors[key].brightness
+          }
+        }
+      }
+      setLevelsChanged(true)
+    } else {
+      setLevelsChanged(false)
+    }
     // Reset panel height so it's recalculated
     panelHeight = -1
     setState(prev => ({
@@ -95,13 +132,12 @@ const BrightnessPanel = memo(function BrightnessPanel() {
       if (inMonitors) {
         return inMonitors
       } else {
-        setState(prev => ({
-          ...prev,
-          monitors: newMonitors
-        }))
-        setDoBackgroundEvent(true)
-      }
+      setState(prev => ({
+        ...prev,
+        monitors: newMonitors
+      }))
     }
+  }
   }
 
   // Update settings
@@ -112,7 +148,6 @@ const BrightnessPanel = memo(function BrightnessPanel() {
     const updateInterval = (settings.updateInterval || 500) * 1
     const remaps = (settings.remaps || {})
     const names = (settings.names || {})
-    setLevelsChanged(true)
     setState(prev => ({
       ...prev,
       linkedLevelsActive,
@@ -123,7 +158,6 @@ const BrightnessPanel = memo(function BrightnessPanel() {
     }))
     resetBrightnessInterval()
     updateMinMax()
-    setDoBackgroundEvent(true)
   }
 
   const recievedUpdate = (e) => {
@@ -138,16 +172,18 @@ const BrightnessPanel = memo(function BrightnessPanel() {
 
 
   // Send new brightness to monitors, if changed
-  const syncBrightness = () => {
-    const monitors = state.monitors
-    if (init && levelsChanged && (window.showPanel || doBackgroundEvent) && numMonitors) {
-      setDoBackgroundEvent(false)
+  const syncBrightness = (inMonitors = state.monitors) => {
+    const monitors = inMonitors
+    if (init && changedMonitorKeys.current.size > 0 && window.showPanel && numMonitors) {
       setLevelsChanged(false)
       try {
-        for (let idx in monitors) {
-          if (monitors[idx].type != "none" && monitors[idx].brightness != lastLevels[idx]) {
-            window.updateBrightness(monitors[idx].id, monitors[idx].brightness)
+        for (const key of Array.from(changedMonitorKeys.current)) {
+          const monitor = monitors[key]
+          if (isBrightnessMonitor(monitor) && monitor.brightness != lastLevels.current[key]) {
+            window.updateBrightness(monitor.id, monitor.brightness)
+            lastLevels.current[key] = monitor.brightness
           }
+          changedMonitorKeys.current.delete(key)
         }
       } catch (e) {
         console.error("Could not update brightness")
@@ -168,7 +204,7 @@ const BrightnessPanel = memo(function BrightnessPanel() {
     return () => {
       clearInterval(updateInterval)
     }
-  }, [state.monitors, numMonitors, doBackgroundEvent, levelsChanged, init])
+  }, [state.monitors, numMonitors, levelsChanged, init])
 
 
   useEffect(() => {
@@ -226,8 +262,11 @@ const BrightnessPanel = memo(function BrightnessPanel() {
         }
         if (lastValidMonitor) {
           const monitor = lastValidMonitor
+          const hasStaleBrightness = Object.values(state.monitors).some(display => {
+            return isBrightnessMonitor(display) && display.brightnessStale && window.settings?.hideDisplays?.[display.key] !== true
+          })
           return (
-            <Slider name={T.t("GENERIC_ALL_DISPLAYS")} id={monitor.id} level={monitor.brightness} min={0} max={100} num={monitor.num} monitortype={monitor.type} hwid={monitor.key} key={monitor.key} onChange={handleChange} scrollAmount={window.settings?.scrollFlyoutAmount} />
+            <Slider name={T.t("GENERIC_ALL_DISPLAYS")} id={monitor.id} level={monitor.brightness} min={0} max={100} num={monitor.num} monitortype={monitor.type} hwid={monitor.key} key={monitor.key} onChange={handleChange} scrollAmount={window.settings?.scrollFlyoutAmount} stale={hasStaleBrightness} staleTitle={T.t("PANEL_BRIGHTNESS_STALE")} />
           )
         }
         return (<div className="no-displays-message">{T.t("GENERIC_NO_COMPATIBLE_DISPLAYS")}</div>)
@@ -331,7 +370,7 @@ const BrightnessPanel = memo(function BrightnessPanel() {
                 }
                 return (
                   <div className="monitor-sliders" key={monitor.key}>
-                    <Slider name={getMonitorName(monitor, state.names)} id={monitor.id} level={monitor.brightness} min={0} max={100} num={monitor.num} monitortype={monitor.type} hwid={monitor.key} key={monitor.key} onChange={handleChange} afterName={showPowerButton()} scrollAmount={window.settings?.scrollFlyoutAmount} />
+                    <Slider name={getMonitorName(monitor, state.names)} id={monitor.id} level={monitor.brightness} min={0} max={100} num={monitor.num} monitortype={monitor.type} hwid={monitor.key} key={monitor.key} onChange={handleChange} afterName={showPowerButton()} scrollAmount={window.settings?.scrollFlyoutAmount} stale={monitor.brightnessStale} staleTitle={T.t("PANEL_BRIGHTNESS_STALE")} />
                   </div>
                 )
               } else {
@@ -348,7 +387,7 @@ const BrightnessPanel = memo(function BrightnessPanel() {
                     { !isHDROnlySDR && (
                       <div className="feature-row feature-brightness">
                         <div className="feature-icon"><span className="icon vfix">&#xE706;</span></div>
-                        <Slider id={monitor.id} level={monitor.brightness} min={0} max={100} num={monitor.num} monitortype={monitor.type} hwid={monitor.key} key={monitor.key} onChange={handleChange} scrollAmount={window.settings?.scrollFlyoutAmount} />
+                        <Slider id={monitor.id} level={monitor.brightness} min={0} max={100} num={monitor.num} monitortype={monitor.type} hwid={monitor.key} key={monitor.key} onChange={handleChange} scrollAmount={window.settings?.scrollFlyoutAmount} stale={monitor.brightnessStale} staleTitle={T.t("PANEL_BRIGHTNESS_STALE")} />
                       </div>
                     )}
                     <DDCCISliders monitor={monitor} monitorFeatures={monitorFeatures} scrollAmount={window.settings?.scrollFlyoutAmount} />

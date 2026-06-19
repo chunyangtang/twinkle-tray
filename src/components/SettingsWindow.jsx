@@ -120,7 +120,7 @@ export default class SettingsWindow extends PureComponent {
             activePage: "general",
             theme: 'default',
             openAtLogin: false,
-            brightnessAtStartup: true,
+            brightnessAtStartup: false,
             monitors: [],
             remaps: [],
             names: [],

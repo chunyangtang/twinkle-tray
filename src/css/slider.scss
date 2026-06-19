@@ -159,6 +159,21 @@
         opacity: 1;
         transition: opacity 0.2s 0.05s;
     }
+
+    &[data-stale="true"] {
+        .input--range {
+            opacity: 0.72;
+
+            .progress {
+                background-color: transparent;
+                background-image: repeating-linear-gradient(90deg, var(--system-accent-medium) 0 8px, transparent 8px 13px);
+            }
+
+            .range::-webkit-slider-thumb {
+                opacity: 0.75;
+            }
+        }
+    }
 }
 
 [data-refreshing="true"] .monitor-item .input--range {

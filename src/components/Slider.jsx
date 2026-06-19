@@ -63,10 +63,11 @@ export default class Slider extends Component {
     }
 
     componentDidUpdate(oldProps) {
-        if (oldProps.max != this.props.max || oldProps.min != this.props.min) {
-            this.setState({
-                level: this.cap(this.props.level)
-            }, this.fireChange())
+        if (oldProps.max != this.props.max || oldProps.min != this.props.min || oldProps.level != this.props.level) {
+            const level = this.cap(this.props.level)
+            if (level !== this.state.level) {
+                this.setState({ level })
+            }
         }
     }
 
@@ -75,7 +76,7 @@ export default class Slider extends Component {
         const max = (this.props.max || 100) * 1
         const level = this.cap(this.props.level)
         return (
-            <div className="monitor-item" onWheel={this.handleWheel}>
+            <div className="monitor-item" onWheel={this.handleWheel} data-stale={(this.props.stale ? true : false)} title={(this.props.stale ? this.props.staleTitle : undefined)}>
                 {this.getName()}
                 <div className="input--range" data-height={this.props.height}>
                     <div className="rangeGroup">

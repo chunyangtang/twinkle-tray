@@ -79,6 +79,17 @@ function requestMonitors() {
     ipc.send('request-monitors')
 }
 
+function refreshMonitorValues() {
+    ipc.send('refresh-monitor-values')
+}
+
+function refreshMonitorValuesOnOpen() {
+    refreshMonitorValues()
+    setTimeout(() => {
+        if (window.showPanel) refreshMonitorValues()
+    }, 750)
+}
+
 function refreshMonitorInputs() {
     ipc.send('refresh-monitor-inputs')
 }
@@ -201,6 +212,7 @@ ipc.on('tray-clicked', () => {
     window.document.getElementById("root").dataset["sleep"] = false
     setPanelVisibility(true)
     requestMonitors()
+    refreshMonitorValuesOnOpen()
     refreshMonitorInputsOnOpen()
 })
 
@@ -434,6 +446,7 @@ window.addEventListener("setVCP", e => {
 window.ipc = ipc
 window.updateBrightness = updateBrightness
 window.requestMonitors = requestMonitors
+window.refreshMonitorValues = refreshMonitorValues
 window.refreshMonitorInputs = refreshMonitorInputs
 window.openSettings = openSettings
 window.sendSettings = sendSettings

@@ -1,7 +1,7 @@
 <p align="center">
   <img src="https://raw.githubusercontent.com/xanderfrangos/twinkle-tray/master/src/assets/logo.png" width="128px" height="128px" alt="Twinkle Tray brightness slider logo">
 </p>
-<h1 align="center">Twinkle Tray Input Switcher</h1>
+<h1 align="center">Twinkle Tray Extended</h1>
 
 <p align="center"><a href="https://github.com/chunyangtang/twinkle-tray/releases" target="_blank"><img src="https://img.shields.io/github/v/release/chunyangtang/twinkle-tray" alt="Latest fork release" /></a> <a href="https://github.com/chunyangtang/twinkle-tray/releases" target="_blank"><img src="https://img.shields.io/github/downloads/chunyangtang/twinkle-tray/total" alt="Fork downloads" /></a> <a href="https://hosted.weblate.org/projects/twinkle-tray/twinkle-tray/" target="_blank"><img src="https://hosted.weblate.org/widgets/twinkle-tray/-/twinkle-tray/svg-badge.svg" alt="Translations" /></a></p>
 

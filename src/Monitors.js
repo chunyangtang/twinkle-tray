@@ -30,7 +30,7 @@ process.on('message', async (data) => {
                 monitorReports = {}
                 monitorReportsRaw = {}
             }
-            refreshMonitors(data.fullRefresh, data.ddcciType).then((results) => {
+            refreshMonitors(data.fullRefresh, data.ddcciType, data.alwaysSendUpdate, data.readBrightness).then((results) => {
                 lastRefresh = deepCopy(results)
                 process.send({
                     type: 'refreshMonitors',
@@ -133,7 +133,7 @@ let canUseWmiBridge = false
 let ddcBrightnessVCPs = {}
 
 let busyLevel = 0
-refreshMonitors = async (fullRefresh = false, ddcciType = "default", alwaysSendUpdate = false) => {
+refreshMonitors = async (fullRefresh = false, ddcciType = "default", alwaysSendUpdate = false, readBrightness = false) => {
     try {
         if ((busyLevel > 0 && !fullRefresh) || (busyLevel > 0 && fullRefresh)) {
             console.log("Thread busy. Cancelling refresh.")
@@ -149,7 +149,7 @@ refreshMonitors = async (fullRefresh = false, ddcciType = "default", alwaysSendU
 
             // DDC/CI
             try {
-                if (settings?.getDDCBrightnessUpdates) {
+                if (settings?.getDDCBrightnessUpdates || readBrightness) {
                     if(!getDDCCI()) {
                         ddcci._refresh(determineDDCCIMethod(), true, !settings.disableHighLevel)
                     }

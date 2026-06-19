@@ -311,7 +311,7 @@ async function refreshMonitorInputs() {
   refreshingMonitorInputs = true
   try {
     await Promise.allSettled(inputMonitors.map(monitor => getVCP(monitor, 0x60)))
-    sendToAllWindows('monitors-updated', monitors)
+    sendMonitorsUpdated()
     return true
   } catch(e) {
     console.log("Couldn't refresh monitor input sources", e)
@@ -520,7 +520,7 @@ const defaultSettings = {
   icon: "icon",
   updateInterval: 500,
   openAtLogin: true,
-  brightnessAtStartup: true,
+  brightnessAtStartup: false,
   killWhenIdle: false,
   remaps: {},
   hotkeys: [],
@@ -629,6 +629,18 @@ function readSettings(doProcessSettings = true) {
   // Overrides
   settings.isDev = isDev
   settings.killWhenIdle = false
+
+  if (!settings.safeBrightnessSyncMigration) {
+    if (settings.brightnessAtStartup === true) {
+      settings.brightnessAtStartup = false
+    }
+    settings.safeBrightnessSyncMigration = true
+    try {
+      fs.writeFileSync(settingsPath, JSON.stringify(settings, null, '\t'))
+    } catch(e) {
+      debug.error("Couldn't save safe brightness migration.", e)
+    }
+  }
 
   if(!isDev && settings.showConsole && !app.commandLine.hasSwitch("console")) {
     reopenAppWithConsole()
@@ -1149,7 +1161,7 @@ function applyProfile(profile = {}, useTransition = false, transitionSpeed = 1, 
     }
   }
   
-  sendToAllWindows('monitors-updated', monitors);
+  sendMonitorsUpdated();
 }
 
 
@@ -1386,7 +1398,8 @@ async function doHotkey(hotkey) {
               if (action.target === "brightness") {
                 const normalizedAdjust = minMax(value)
                 monitors[monitor.key].brightness = normalizedAdjust
-                sendToAllWindows('monitors-updated', monitors);
+                markMonitorBrightnessKnown(monitors[monitor.key])
+                sendMonitorsUpdated();
                 updateBrightnessThrottle(monitor.id, monitors[monitor.key].brightness, true, false)
                 pauseMonitorUpdates() // Stop incoming updates for a moment to prevent judder
 
@@ -1408,7 +1421,7 @@ async function doHotkey(hotkey) {
                   vcpCode = "0xD2"
                 }
                 updateBrightnessThrottle(monitor.id, parseInt(value), false, true, parseInt(vcpCode))
-                sendToAllWindows('monitors-updated', monitors);
+                sendMonitorsUpdated();
               }
             }
           }
@@ -1928,12 +1941,13 @@ const setIsRefreshing = newValue => {
 }
 
 
-refreshMonitorsJob = async (fullRefresh = false) => {
+refreshMonitorsJob = async (fullRefresh = false, readBrightness = false) => {
   return await new Promise((resolve, reject) => {
     try {
       monitorsThread.send({
         type: "refreshMonitors",
-        fullRefresh
+        fullRefresh,
+        readBrightness
       })
 
       let timeout = setTimeout(() => {
@@ -1961,8 +1975,60 @@ refreshMonitorsJob = async (fullRefresh = false) => {
 }
 
 let lastRefreshMonitors = 0
+let brightnessConfidence = {}
 
-async function refreshMonitors(fullRefresh = false, bypassRateLimit = false) {
+function isBrightnessCapableMonitor(monitor) {
+  return monitor && (
+    monitor.type === "wmi" ||
+    monitor.type === "studio-display" ||
+    (monitor.type === "ddcci" && monitor.brightnessType) ||
+    monitor.hdr === "active"
+  )
+}
+
+function markBrightnessKnown(monitorList = monitors, source = "hardware") {
+  const now = Date.now()
+  for (const monitor of Object.values(monitorList || {})) {
+    if (isBrightnessCapableMonitor(monitor)) {
+      brightnessConfidence[monitor.key] = { source, at: now }
+    }
+  }
+}
+
+function markMonitorBrightnessKnown(monitor, source = "software") {
+  if (isBrightnessCapableMonitor(monitor)) {
+    brightnessConfidence[monitor.key] = { source, at: Date.now() }
+  }
+}
+
+function getMonitorsForWindow(forceStale = false) {
+  let out = {}
+  try {
+    out = JSON.parse(JSON.stringify(monitors || {}))
+  } catch(e) {
+    out = monitors || {}
+  }
+
+  const now = Date.now()
+  for (const key in out) {
+    const monitor = out[key]
+    if (!isBrightnessCapableMonitor(monitor)) continue;
+
+    const confidence = brightnessConfidence[monitor.key]
+    const known = !forceStale && confidence && (now - confidence.at) < 10000
+    monitor.brightnessKnown = known ? true : false
+    monitor.brightnessStale = known ? false : true
+    monitor.brightnessSource = known ? confidence.source : "cached"
+  }
+
+  return out
+}
+
+function sendMonitorsUpdated(forceStale = false) {
+  sendToAllWindows('monitors-updated', getMonitorsForWindow(forceStale))
+}
+
+async function refreshMonitors(fullRefresh = false, bypassRateLimit = false, readBrightness = false) {
 
   if (isWindowsUserIdle) {
     console.log("Displays are off, no updates.")
@@ -2005,7 +2071,7 @@ async function refreshMonitors(fullRefresh = false, bypassRateLimit = false) {
 
   let failed = false
   try {
-    newMonitors = await refreshMonitorsJob(fullRefresh)
+    newMonitors = await refreshMonitorsJob(fullRefresh, readBrightness)
     if (!newMonitors) {
       failed = true;
       throw "No monitors recieved!";
@@ -2046,11 +2112,14 @@ async function refreshMonitors(fullRefresh = false, bypassRateLimit = false) {
     }
 
     monitors = newMonitors;
+    if (fullRefresh || readBrightness || settings.getDDCBrightnessUpdates) {
+      markBrightnessKnown(monitors, "hardware")
+    }
 
     // Only send update if something changed
     if (JSON.stringify(newMonitors) !== JSON.stringify(oldMonitors)) {
       setTrayPercent()
-      sendToAllWindows('monitors-updated', monitors)
+      sendMonitorsUpdated()
     } else {
       console.log("===--- NO CHANGE ---===")
     }
@@ -2099,7 +2168,7 @@ function updateBrightnessThrottle(id, level, useCap = true, sendUpdate = true, v
   if (lastBrightnessTimes[id] === undefined || now >= lastBrightnessTimes[id] + settings.updateInterval) {
     lastBrightnessTimes[id] = now
     updateBrightness(id, level, useCap, vcp)
-    if (sendUpdate) sendToAllWindows('monitors-updated', monitors);
+    if (sendUpdate) sendMonitorsUpdated();
     return true
   } else if (!updateBrightnessTimeout) {
     lastBrightnessTimes[id] = now
@@ -2115,7 +2184,7 @@ function updateBrightnessThrottle(id, level, useCap = true, sendUpdate = true, v
         }
       }
       updateBrightnessTimeout = false
-      if (sendUpdate) sendToAllWindows('monitors-updated', monitors);
+      if (sendUpdate) sendMonitorsUpdated();
     }, settings.updateInterval)
   }
   return false
@@ -2186,6 +2255,7 @@ function updateBrightness(index, newLevel, useCap = true, vcpValue = "brightness
       if(settings.sdrAsMainSliderDisplays?.[monitor.key]) {
         monitor.brightness = level
         monitor.brightnessRaw = normalized
+        markMonitorBrightnessKnown(monitor)
       }
     } else if (monitor.type == "ddcci") {
       if (vcp === "brightness") {
@@ -2201,6 +2271,7 @@ function updateBrightness(index, newLevel, useCap = true, vcpValue = "brightness
         if(settings.sdrAsMainSliderDisplays?.[monitor.key] && monitor.hdr === "active") {
           monitor.brightness = monitor.sdrLevel
         }
+        markMonitorBrightnessKnown(monitor)
 
         // Apply linked DDC/CI features
         const featuresSettings = settings.monitorFeaturesSettings?.[monitor.hwid[1]]
@@ -2250,6 +2321,7 @@ function updateBrightness(index, newLevel, useCap = true, vcpValue = "brightness
     } else if (monitor.type === "studio-display") {
       monitor.brightness = level
       monitor.brightnessRaw = normalized
+      markMonitorBrightnessKnown(monitor)
       monitorsThread.send({
         type: "brightness",
         brightness: normalized * ((monitor.brightnessMax || 100) / 100),
@@ -2259,6 +2331,7 @@ function updateBrightness(index, newLevel, useCap = true, vcpValue = "brightness
       ignoreBrightnessEvent = true // Don't listen for Windows brightness events
       monitor.brightness = level
       monitor.brightnessRaw = normalized
+      markMonitorBrightnessKnown(monitor)
       monitorsThread.send({
         type: "brightness",
         brightness: normalized
@@ -2310,7 +2383,8 @@ function updateAllBrightness(brightness, mode = "offset") {
   }
 
   // Update UI
-  sendToAllWindows('monitors-updated', monitors);
+  markBrightnessKnown(monitors, "software")
+  sendMonitorsUpdated();
 
   // Send brightness updates
   for (let key in monitors) {
@@ -2397,7 +2471,7 @@ function transitionBrightness(level, eventMonitors = [], stepSpeed = 1) {
       } else {
         updateBrightness(monitor.id, (monitor.brightness < normalized ? monitor.brightness + step : monitor.brightness - step), undefined, undefined, false)
       }
-      sendToAllWindows('monitors-updated', monitors)
+      sendMonitorsUpdated()
       if (numDone === Object.keys(monitors).length) {
         clearInterval(currentTransition);
         currentTransition = null
@@ -2415,7 +2489,7 @@ function transitionlessBrightness(level, eventMonitors = []) {
       normalized = (eventMonitors[monitor.id] >= 0 ? eventMonitors[monitor.id] : level)
     }
     updateBrightness(monitor.id, normalized)
-    sendToAllWindows('monitors-updated', monitors)
+    sendMonitorsUpdated()
   }
 }
 
@@ -2523,8 +2597,12 @@ ipcMain.on('update-brightness', function (event, data) {
 })
 
 ipcMain.on('request-monitors', function (event, arg) {
-  sendToAllWindows("monitors-updated", monitors)
+  sendMonitorsUpdated()
   //refreshMonitors(false, true)
+})
+
+ipcMain.on('refresh-monitor-values', function (event, arg) {
+  refreshMonitors(false, true, true)
 })
 
 ipcMain.on('refresh-monitor-inputs', function (event, arg) {
@@ -2534,7 +2612,7 @@ ipcMain.on('refresh-monitor-inputs', function (event, arg) {
 ipcMain.on('full-refresh', function (event, forceUpdate = false) {
   refreshMonitors(true).then(() => {
     if (forceUpdate) {
-      sendToAllWindows('monitors-updated', monitors)
+      sendMonitorsUpdated()
     }
   })
 })
@@ -2759,7 +2837,7 @@ function createPanel(toggleOnLoad = false, isRefreshing = false, showOnLoad = tr
 
   mainWindow.webContents.once('dom-ready', () => {
     try {
-      sendToAllWindows('monitors-updated', monitors)
+      sendMonitorsUpdated()
       // Do full refreshes shortly after startup in case Windows isn't ready.
 
       setTimeout(sendMicaWallpaper, 1000)
@@ -2817,14 +2895,19 @@ function createPanel(toggleOnLoad = false, isRefreshing = false, showOnLoad = tr
       // Internal display brightness change
       if(!settings.useGuidBrightnessEvent) return false;
       if(!ignoreBrightnessEvent) {
+        let changed = false
         for(const hwid2 in monitors) {
           const monitor = monitors[hwid2]
           if(monitor.type === "wmi") {
             const normalized = normalizeBrightness(setting.data, true, monitor.min, monitor.max, monitor.calibration)
             monitor.brightness = normalized
             monitor.brightnessRaw = setting.data
+            changed = true
           }
-          sendToAllWindows('monitors-updated', monitors)
+        }
+        if (changed) {
+          markBrightnessKnown(monitors, "hardware")
+          sendMonitorsUpdated()
         }
       }
     }
@@ -3134,7 +3217,7 @@ function applyProfileBrightness(profile) {
     Object.values(monitors)?.forEach(monitor => {
       updateBrightness(monitor.id, profile.monitors[monitor.id], true, "brightness")
     })
-    sendToAllWindows('monitors-updated', monitors)
+    sendMonitorsUpdated()
   } catch (e) {
     console.log("Error applying profile brightness", e)
   }
@@ -3580,10 +3663,14 @@ function setTrayPercent() {
 
 let lastEagerUpdate = 0
 function tryEagerUpdate(forceRefresh = true) {
+  return tryEagerUpdateWithOptions(forceRefresh)
+}
+
+function tryEagerUpdateWithOptions(forceRefresh = true, readBrightness = false) {
   const now = Date.now()
   if (now > lastEagerUpdate + 5000) {
     lastEagerUpdate = now
-    refreshMonitors(forceRefresh, true)
+    refreshMonitors(forceRefresh, true, readBrightness)
   }
 }
 
@@ -3604,7 +3691,7 @@ const toggleTray = async (doRefresh = true, isOverlay = false) => {
   }
 
   if (doRefresh && !isOverlay) {
-    tryEagerUpdate(false)
+    tryEagerUpdateWithOptions(false, true)
     getThemeRegistry()
     getSettings()
 
